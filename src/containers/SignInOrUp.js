@@ -6,9 +6,11 @@ import Paper from 'material-ui/Paper';
 import TextField from 'material-ui/TextField'
 import RaisedButton from 'material-ui/RaisedButton'
 import FlatButton from 'material-ui/FlatButton'
+import api from 'feathersjs-redux-model/build/middleware/api'
 
 import setFormErrors from '../actions/set-form-errors'
 import resetFormErrors from '../actions/reset-form-errors'
+import appLoading from '../actions/app-loading'
 
 const errorMargin = {
   marginTop: '2rem'
@@ -40,7 +42,9 @@ class SignInOrUp extends Component {
   }
 
   registerUser() {
-    this.props.resetFormErrors()
+    const { resetFormErrors, appLoading, setFormErrors } = this.props
+
+    resetFormErrors()
 
     const { name, email, password, passwordConfirmation } = this.formValues()
 
@@ -51,11 +55,46 @@ class SignInOrUp extends Component {
       })
     }
 
+    appLoading(true)
+
+    const user = {
+      name,
+      email,
+      password
+    }
+
+    api.service('users').create(user)
+      .then(() => {
+        this.signInUser()
+      }).catch((error) => {
+        appLoading(false)
+
+        if (error.code === 409) {
+          setFormErrors({
+            email: 'This email address already exists!',
+          })
+        } else {
+          console.error('Error registering!', error);
+        }
+    })
+
     // continue to register the user somehow
   }
 
   signInUser() {
-    console.log("Sign in User!")
+    const { appLoading } = this.props
+    const { email, password } = this.formValues()
+
+    appLoading(true)
+
+    api.authenticate({ email, password })
+      .then((response) => {
+        appLoading(false)
+        setCurrentUser(response.data)
+      }).catch((error) => {
+        appLoading(false)
+        debugger
+      })
   }
 
   formValues() {
@@ -87,7 +126,8 @@ class SignInOrUp extends Component {
           <TextField
             type="email"
             ref="email"
-            hintText="Your email" />
+            hintText="Your email"
+            errorText={ this.props.errors.email } />
         </div>
         <div>
           <TextField type="password" ref="password" hintText="Your password"/>
@@ -123,4 +163,4 @@ const mapStateToProps = (state) => {
   }
 }
 
-export default connect(mapStateToProps, { setFormErrors, resetFormErrors })(SignInOrUp)
+export default connect(mapStateToProps, { setFormErrors, resetFormErrors, appLoading })(SignInOrUp)
